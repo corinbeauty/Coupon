@@ -339,7 +339,7 @@
             <ul class="list-disc pl-5 space-y-1">
                 <li>每次點擊「重新產生核銷碼」會隨機生成一組 8 碼的英數混合 <strong>核銷碼</strong>。</li>
                 <li>QR Code 掃描後會連結到您的預約網站：<code>https://lin.ee/71YjK75?code=[核銷碼]</code>。</li>
-                <li><strong>批次下載功能：</strong>若您將「批次下載張數」設大於 1，點擊儲存數位券時，系統會自動生成對應數量的不同核銷碼圖檔，並打包成 <strong>ZIP 壓縮檔</strong> 讓您一次下載。</li>
+                <li><strong>批次下載功能：</strong>若您將「批次下載張數」設大於 1，點擊儲存時系統會自動生成對應數量的不同核銷碼，並<strong>逐張直接下載圖檔</strong>（瀏覽器若詢問「是否允許下載多個檔案」，請點選允許）。</li>
                 <li>您可以直接點擊「儲存數位券」下載折價券傳送給客人，或使用「實體列印」功能印製紙本券。</li>
             </ul>
         </div>
@@ -472,7 +472,7 @@
             }
         }
 
-        // 下載折價券圖片 (支援單張與批次打包)
+        // 下載折價券圖片 (逐張下載)
         async function downloadCouponImage() {
             const countInput = document.getElementById('generate-count');
             let count = parseInt(countInput.value) || 1;
@@ -500,12 +500,21 @@
             couponElement.style.transform = 'none';
 
             try {
-                if (count === 1) {
-                    // === 單張下載 ===
-                    btn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 處理中...';
-                    
-                    // 等待一下確保 DOM 完全更新
-                    await new Promise(r => setTimeout(r, 150));
+                for (let i = 0; i < count; i++) {
+                    if (count > 1) {
+                        btn.innerHTML = `<svg class="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 產生中 (${i + 1}/${count})...`;
+                        
+                        // 產生新的一張 (關閉動畫)
+                        generateCoupon(false);
+                        
+                        // 等待 QR Code 與 DOM 渲染
+                        await new Promise(r => setTimeout(r, 250));
+                    } else {
+                        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 處理中...';
+                        
+                        // 等待一下確保 DOM 完全更新
+                        await new Promise(r => setTimeout(r, 150));
+                    }
                     
                     const canvas = await html2canvas(couponElement, {
                         scale: 2.5, // 提高截圖品質解析度
@@ -519,44 +528,15 @@
                     const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
                     link.download = `Corin_Voucher_${currentCode}_${dateStr}.png`;
                     link.href = image;
+                    
+                    // 觸發下載
                     link.click();
-                    
-                } else {
-                    // === 批次打包下載 (ZIP) ===
-                    const zip = new JSZip();
-                    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
-                    const folderName = `Corin_Vouchers_${dateStr}`;
-                    const imgFolder = zip.folder(folderName);
-                    
-                    for (let i = 0; i < count; i++) {
-                        btn.innerHTML = `<svg class="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 產生中 (${i + 1}/${count})...`;
-                        
-                        // 產生新的一張 (關閉動畫)
-                        generateCoupon(false);
-                        
-                        // 等待 QR Code 與 DOM 渲染
-                        await new Promise(r => setTimeout(r, 250));
-                        
-                        // 截圖
-                        const canvas = await html2canvas(couponElement, {
-                            scale: 2.5,
-                            backgroundColor: null, 
-                            useCORS: true,
-                            logging: false
-                        });
-                        
-                        // 取得 base64 字串並去除前綴
-                        const imageBase64 = canvas.toDataURL("image/png").split(',')[1];
-                        imgFolder.file(`Corin_Voucher_${currentCode}.png`, imageBase64, {base64: true});
-                    }
-                    
-                    btn.innerHTML = `<svg class="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 打包中...`;
-                    
-                    // 產生 ZIP 檔案並觸發下載
-                    const zipContent = await zip.generateAsync({type: "blob"});
-                    saveAs(zipContent, `${folderName}.zip`);
-                }
 
+                    // 加入短暫延遲，讓瀏覽器有時間處理下載事件，避免被阻擋
+                    if (count > 1 && i < count - 1) {
+                        await new Promise(r => setTimeout(r, 400));
+                    }
+                }
             } catch (err) {
                 console.error('下載失敗:', err);
                 showAlert('產生圖片失敗，請確認您的瀏覽器是否阻擋了下載行為。', '系統提示');

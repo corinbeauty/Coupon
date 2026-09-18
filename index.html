@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corin Beauty - 除毛折價券系統</title>
+    
+    <!-- 引入 Tailwind CSS 用於快速樣式設計 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 設定 Tailwind 自訂色彩 (暗金色系) -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gold: {
+                            50: '#fbf9f5',
+                            100: '#f5f0e3',
+                            200: '#e7d7b9',
+                            300: '#d7b989',
+                            400: '#c89d5c',
+                            500: '#b8863f',
+                            600: '#9f6b31',
+                            700: '#80522a',
+                            800: '#6b4327',
+                            900: '#573722',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                        mono: ['Courier New', 'Courier', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- 引入 Google Fonts (Inter & Noto Sans TC) 提升排版質感 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- 引入 QRCode.js 用於生成 QR Code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <!-- 引入 html2canvas 用於下載圖片功能 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        body {
+            background-color: #f8f9fa; /* 乾淨的淺灰背景 */
+            color: #334155;
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+        
+        /* 玻璃擬態風格的控制面板 */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.05);
+        }
+
+        /* 高級質感的折價券外框 */
+        .coupon-wrapper {
+            filter: drop-shadow(0 20px 25px -5px rgba(0, 0, 0, 0.05)) drop-shadow(0 8px 10px -6px rgba(0, 0, 0, 0.01));
+        }
+
+        .coupon-card {
+            background: #ffffff;
+            position: relative;
+            overflow: hidden;
+            border-radius: 16px;
+        }
+
+        /* 頂部裝飾條 - 改為暗金漸層 */
+        .coupon-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, #d7b989 0%, #9f6b31 100%);
+            z-index: 10;
+        }
+        
+        /* 折價券的裝飾性打孔效果 */
+        .coupon-cutout {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            background-color: #f8f9fa;
+            border-radius: 50%;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 20;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+        
+        .coupon-cutout.left {
+            left: -16px;
+        }
+        
+        .coupon-cutout.right {
+            right: -16px;
+        }
+
+        /* 虛線分隔線 */
+        .dashed-line {
+            position: absolute;
+            left: 68%;
+            top: 24px;
+            bottom: 24px;
+            width: 1px;
+            background-image: linear-gradient(to bottom, #cbd5e1 50%, transparent 50%);
+            background-size: 1px 12px;
+            background-repeat: repeat-y;
+            z-index: 10;
+        }
+        
+        /* 浮水印效果 - 暗金色調 */
+        .watermark {
+            position: absolute;
+            top: -20%;
+            right: -10%;
+            font-size: 180px;
+            font-weight: 800;
+            color: rgba(215, 185, 137, 0.15); /* 極淡的暗金色 */
+            transform: rotate(-15deg);
+            z-index: 0;
+            pointer-events: none;
+            user-select: none;
+        }
+        
+        /* RWD 適應性調整 */
+        @media (max-width: 640px) {
+            .dashed-line {
+                left: 24px;
+                right: 24px;
+                top: 60%;
+                bottom: auto;
+                height: 1px;
+                width: auto;
+                background-image: linear-gradient(to right, #cbd5e1 50%, transparent 50%);
+                background-size: 12px 1px;
+                background-repeat: repeat-x;
+            }
+            .coupon-cutout {
+                top: 60%;
+                transform: translateX(-50%);
+            }
+            .coupon-cutout.left {
+                left: 50%;
+                top: -16px;
+            }
+            .coupon-cutout.right {
+                right: auto;
+                left: 50%;
+                bottom: -16px;
+                top: auto;
+            }
+        }
+        
+        /* 表單元素聚焦時的平滑過渡 */
+        .form-input {
+            transition: all 0.2s ease-in-out;
+        }
+        .form-input:focus {
+            box-shadow: 0 0 0 3px rgba(200, 157, 92, 0.2);
+            border-color: #c89d5c;
+        }
+
+        /* 列印特定樣式 (隱藏不需要的按鈕) */
+        @media print {
+            body { background: white !important; }
+            .no-print { display: none !important; }
+            .coupon-wrapper { filter: none; }
+            .coupon-card { border: 1px solid #e2e8f0; }
+            .coupon-cutout { background-color: white; border: 1px solid #e2e8f0; }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 flex flex-col items-center">
+
+    <div class="w-full max-w-5xl mx-auto">
+        <header class="text-center mb-10 no-print">
+            <h1 class="text-3xl font-light text-slate-800 tracking-wider mb-2 uppercase">Corin <span class="font-bold text-gold-600">Beauty</span></h1>
+            <p class="text-sm text-slate-500 tracking-[0.2em]">票券發行系統</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+            
+            <!-- 左側設定面板 (玻璃擬態) -->
+            <div class="lg:col-span-4 glass-panel p-6 sm:p-8 rounded-2xl no-print h-fit relative overflow-hidden">
+                <!-- 裝飾性漸層光暈 -->
+                <div class="absolute top-0 right-0 w-32 h-32 bg-gold-100 rounded-full mix-blend-multiply filter blur-2xl opacity-50 -translate-y-1/2 translate-x-1/2"></div>
+                
+                <h2 class="text-lg font-semibold mb-6 text-slate-800 flex items-center tracking-wide">
+                    <svg class="w-5 h-5 mr-2 text-gold-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                    票券參數設定
+                </h2>
+                
+                <form id="coupon-form" class="space-y-6 relative z-10">
+                    <!-- 優惠內容 -->
+                    <div>
+                        <label for="offer-title" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">優惠方案標題</label>
+                        <input type="text" id="offer-title" value="首次除毛折價 $300" class="form-input w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-sm outline-none">
+                    </div>
+                    
+                    <!-- 優惠副標題/說明 -->
+                    <div>
+                        <label for="offer-desc" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">方案說明細節</label>
+                        <textarea id="offer-desc" rows="2" class="form-input w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-sm outline-none resize-none">限新客使用
+包含專業諮詢與課後舒緩</textarea>
+                    </div>
+
+                    <!-- 使用期限設定 -->
+                    <div>
+                        <label for="expiry-date" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">有效期限</label>
+                        <input type="date" id="expiry-date" class="form-input w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-sm outline-none font-mono">
+                    </div>
+                    
+                    <!-- 預約網址 -->
+                    <div>
+                        <label for="booking-url" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex justify-between">
+                            <span>預約系統網址</span>
+                            <span class="text-slate-400 font-normal normal-case">固定網址</span>
+                        </label>
+                        <input type="url" id="booking-url" value="https://corin-booking.vercel.app/" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 text-sm outline-none cursor-not-allowed" readonly>
+                    </div>
+
+                    <!-- 操作按鈕區塊 -->
+                    <div class="pt-6 border-t border-slate-100 flex flex-col gap-3">
+                        <button type="button" id="generate-btn" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-3 px-4 rounded-lg shadow-sm transition-all duration-200 flex justify-center items-center group">
+                            <svg class="w-5 h-5 mr-2 text-gold-400 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            重新產生核銷碼
+                        </button>
+                        
+                        <div class="grid grid-cols-2 gap-3 mt-1">
+                            <button type="button" id="download-btn" class="bg-gold-600 hover:bg-gold-700 text-white font-medium py-2.5 px-4 rounded-lg shadow-sm transition-colors flex justify-center items-center text-sm">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                儲存數位券
+                            </button>
+                            <button type="button" id="print-btn" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2.5 px-4 rounded-lg shadow-sm transition-colors flex justify-center items-center text-sm">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                實體列印
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 右側預覽面板 -->
+            <div class="lg:col-span-8 flex items-center justify-center p-2 sm:p-6">
+                
+                <!-- 實際的折價券容器 (要被儲存或列印的部分) -->
+                <div id="coupon-container" class="coupon-wrapper w-full max-w-[720px] transition-transform duration-300">
+                    <div class="coupon-card flex flex-col sm:flex-row min-h-[260px]">
+                        
+                        <!-- 背景浮水印 -->
+                        <div class="watermark">CORIN</div>
+
+                        <!-- 裝飾性打孔 -->
+                        <div class="coupon-cutout left no-print"></div>
+                        <div class="coupon-cutout right no-print"></div>
+                        
+                        <!-- 虛線分隔線 -->
+                        <div class="dashed-line"></div>
+                        
+                        <!-- 左側：優惠資訊主體 (佔 68%) -->
+                        <div class="w-full sm:w-[68%] p-8 sm:p-10 flex flex-col justify-between relative z-10 bg-white">
+                            <div>
+                                <div class="flex items-center justify-between mb-6">
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-slate-800 font-semibold tracking-wide uppercase text-sm">Corin Beauty (台中館)</span>
+                                    </div>
+                                    <span class="px-2.5 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded tracking-widest">專屬票券</span>
+                                </div>
+                                
+                                <h3 id="display-title" class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 leading-tight tracking-tight">首次除毛折價 $300</h3>
+                                <p id="display-desc" class="text-slate-500 text-sm leading-relaxed max-w-sm whitespace-pre-line">限新客使用
+包含專業諮詢與課後舒緩</p>
+                            </div>
+                            
+                            <div class="mt-8 pt-5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-[10px] text-slate-400 font-semibold tracking-widest">有效期限</span>
+                                    <span id="display-expiry" class="text-base font-semibold text-gold-600 font-mono tracking-wide">2026/12/31</span>
+                                </div>
+                                <div class="flex flex-col gap-1 sm:text-right">
+                                    <span class="text-[10px] text-slate-400 font-semibold tracking-widest">核銷碼</span>
+                                    <span id="display-code" class="text-lg font-bold text-slate-800 font-mono tracking-[0.2em]">A1B2-C3D4</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 右側：QR Code 掃描區 (佔 32%) -->
+                        <div class="w-full sm:w-[32%] bg-slate-50/80 p-8 flex flex-col items-center justify-center relative z-10 border-l border-transparent sm:border-slate-100">
+                            
+                            <div class="text-center mb-5">
+                                <p class="text-xs font-bold text-gold-700 tracking-widest mb-1 uppercase">Scan to Book</p>
+                                <p class="text-[10px] text-slate-500 font-medium">掃描自動帶入核銷碼</p>
+                            </div>
+                            
+                            <!-- QR Code 容器 外框設計 -->
+                            <div class="bg-white p-3 rounded-xl shadow-[0_8px_24px_rgba(215,185,137,0.15)] border border-gold-100 mb-6 transition-transform hover:scale-105 duration-300">
+                                <div id="qrcode"></div>
+                            </div>
+                            
+                            <div class="text-[10px] text-slate-500 text-center tracking-widest font-medium space-y-1.5">
+                                <p>預約時請告知使用此票券</p>
+                                <p>此票券限折抵除毛項目</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+        
+        <!-- 使用說明 -->
+        <div class="mt-12 text-sm text-gray-500 bg-white p-6 rounded-xl border border-gray-100 no-print">
+            <h4 class="font-bold text-gray-700 mb-2">系統運作方式說明：</h4>
+            <ul class="list-disc pl-5 space-y-1">
+                <li>每次點擊「重新產生核銷碼」會隨機生成一組 8 碼的英數混合 <strong>核銷碼</strong>。</li>
+                <li>QR Code 掃描後會連結到您的預約網站：<code>https://corin-booking.vercel.app/?code=[核銷碼]</code>。</li>
+                <li>您可以直接點擊「儲存數位券」下載折價券，傳送給客人，或使用「實體列印」功能印製紙本券。</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 自訂訊息對話框 (取代系統預設 alert) -->
+    <div id="alert-modal" class="fixed inset-0 flex items-center justify-center z-50 opacity-0 pointer-events-none transition-opacity duration-300">
+        <!-- 半透明遮罩 -->
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal()"></div>
+        <!-- 對話框內容 -->
+        <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 relative z-10 transform transition-transform scale-95" id="alert-content">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-gold-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-gold-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2" id="alert-title">訊息</h3>
+                <p class="text-gray-600 text-sm mb-6" id="alert-message">訊息內容</p>
+                <button onclick="closeModal()" class="w-full bg-gold-600 hover:bg-gold-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    確認
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化全域變數
+        let qrcode = null;
+        let currentCode = '';
+
+        // DOM 元素載入完成後執行
+        document.addEventListener('DOMContentLoaded', () => {
+            // 設定預設日期為 30 天後
+            const today = new Date();
+            const futureDate = new Date(today);
+            futureDate.setDate(today.getDate() + 30);
+            
+            // 格式化為 YYYY-MM-DD 並填入 input
+            const dateStr = futureDate.toISOString().split('T')[0];
+            document.getElementById('expiry-date').value = dateStr;
+
+            // 首次自動產生折價券
+            generateCoupon();
+
+            // 綁定按鈕點擊事件監聽器
+            document.getElementById('generate-btn').addEventListener('click', generateCoupon);
+            document.getElementById('download-btn').addEventListener('click', downloadCouponImage);
+            document.getElementById('print-btn').addEventListener('click', () => window.print());
+            
+            // 即時預覽輸入變更 (標題、描述、日期)
+            document.getElementById('offer-title').addEventListener('input', (e) => {
+                document.getElementById('display-title').textContent = e.target.value || '專屬優惠';
+            });
+            document.getElementById('offer-desc').addEventListener('input', (e) => {
+                document.getElementById('display-desc').textContent = e.target.value;
+            });
+            document.getElementById('expiry-date').addEventListener('change', (e) => {
+                const dateVal = e.target.value;
+                if(dateVal) {
+                    const formattedDate = dateVal.replace(/-/g, '/');
+                    document.getElementById('display-expiry').textContent = formattedDate;
+                }
+            });
+        });
+
+        // 產生隨機核銷碼 (格式: A1B2-C3D4)
+        function generateRandomCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 8; i++) {
+                if (i === 4) code += '-';
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        // 產生折價券主邏輯
+        function generateCoupon() {
+            // 獲取表單資料
+            const title = document.getElementById('offer-title').value;
+            const desc = document.getElementById('offer-desc').value;
+            const expiryDate = document.getElementById('expiry-date').value;
+            const bookingUrl = document.getElementById('booking-url').value;
+
+            if (!expiryDate) {
+                showAlert('請選擇有效的票券使用期限', '資料未填寫完整');
+                return;
+            }
+
+            // 更新預覽區文字
+            document.getElementById('display-title').textContent = title || '專屬優惠';
+            document.getElementById('display-desc').textContent = desc;
+            document.getElementById('display-expiry').textContent = expiryDate.replace(/-/g, '/');
+            
+            // 產生新核銷碼並更新畫面
+            currentCode = generateRandomCode();
+            document.getElementById('display-code').textContent = currentCode;
+
+            // 組合包含核銷碼的預約網址 (?code=XXXX)
+            let finalUrl = bookingUrl;
+            if (finalUrl.includes('?')) {
+                finalUrl += `&code=${currentCode}`;
+            } else {
+                finalUrl += `?code=${currentCode}`;
+            }
+
+            // 清空並重新生成 QR Code
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+
+            qrcode = new QRCode(qrContainer, {
+                text: finalUrl,
+                width: 130,
+                height: 130,
+                colorDark : "#573722", // 使用 gold-900 暗金色，提升專業感
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H // 提高容錯率讓圖案更穩定
+            });
+            
+            // 添加優雅的生成動畫效果
+            const couponContainer = document.getElementById('coupon-container');
+            couponContainer.style.opacity = '0.6';
+            couponContainer.style.transform = 'translateY(10px) scale(0.98)';
+            setTimeout(() => {
+                couponContainer.style.transition = 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+                couponContainer.style.opacity = '1';
+                couponContainer.style.transform = 'translateY(0) scale(1)';
+            }, 50);
+        }
+
+        // 下載折價券圖片
+        function downloadCouponImage() {
+            const couponElement = document.getElementById('coupon-container');
+            
+            // 顯示載入中按鈕狀態
+            const btn = document.getElementById('download-btn');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 處理中...';
+            btn.disabled = true;
+
+            // 暫時移除過渡動畫，避免截圖出現殘影
+            couponElement.style.transition = 'none';
+            couponElement.style.transform = 'none';
+
+            // 確保畫面更新後再執行截圖
+            setTimeout(() => {
+                html2canvas(couponElement, {
+                    scale: 2.5, // 提高截圖品質解析度
+                    backgroundColor: null, 
+                    useCORS: true,
+                    logging: false
+                }).then(canvas => {
+                    try {
+                        const image = canvas.toDataURL("image/png");
+                        const link = document.createElement('a');
+                        const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+                        link.download = `Corin_Voucher_${currentCode}_${dateStr}.png`;
+                        link.href = image;
+                        link.click();
+                    } catch (err) {
+                        console.error('下載失敗:', err);
+                        showAlert('產生圖片失敗，請確認您的瀏覽器是否阻擋了下載行為。', '系統提示');
+                    } finally {
+                        // 恢復按鈕與元素狀態
+                        btn.innerHTML = originalContent;
+                        btn.disabled = false;
+                        couponElement.style.transition = '';
+                    }
+                });
+            }, 200);
+        }
+
+        // 顯示自訂訊息框 (替代傳統 alert)
+        function showAlert(message, title = '提示') {
+            const modal = document.getElementById('alert-modal');
+            const content = document.getElementById('alert-content');
+            
+            document.getElementById('alert-title').textContent = title;
+            document.getElementById('alert-message').textContent = message;
+            
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            content.classList.remove('scale-95');
+            content.classList.add('scale-100');
+        }
+
+        // 關閉自訂訊息框
+        function closeModal() {
+            const modal = document.getElementById('alert-modal');
+            const content = document.getElementById('alert-content');
+            
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+        }
+    </script>
+</body>
+</html>

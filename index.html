@@ -46,6 +46,10 @@
     
     <!-- 引入 html2canvas 用於下載圖片功能 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- 引入 JSZip 與 FileSaver 用於批次打包下載 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
     <style>
         body {
@@ -223,13 +227,21 @@
                         <input type="date" id="expiry-date" class="form-input w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-sm outline-none font-mono">
                     </div>
                     
-                    <!-- 預約網址 -->
-                    <div>
-                        <label for="booking-url" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex justify-between">
-                            <span>預約系統網址</span>
-                            <span class="text-slate-400 font-normal normal-case">固定網址</span>
-                        </label>
-                        <input type="url" id="booking-url" value="https://corin-booking.vercel.app/" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 text-sm outline-none cursor-not-allowed" readonly>
+                    <!-- 預約網址與產出張數 -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="booking-url" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex justify-between">
+                                <span>預約系統網址</span>
+                            </label>
+                            <input type="url" id="booking-url" value="https://lin.ee/71YjK75" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 text-sm outline-none cursor-not-allowed" readonly title="固定網址">
+                        </div>
+                        <div>
+                            <label for="generate-count" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex justify-between">
+                                <span>批次下載張數</span>
+                                <span class="text-slate-400 font-normal normal-case">上限 50 張</span>
+                            </label>
+                            <input type="number" id="generate-count" value="1" min="1" max="50" class="form-input w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-sm outline-none font-mono">
+                        </div>
                     </div>
 
                     <!-- 操作按鈕區塊 -->
@@ -326,8 +338,9 @@
             <h4 class="font-bold text-gray-700 mb-2">系統運作方式說明：</h4>
             <ul class="list-disc pl-5 space-y-1">
                 <li>每次點擊「重新產生核銷碼」會隨機生成一組 8 碼的英數混合 <strong>核銷碼</strong>。</li>
-                <li>QR Code 掃描後會連結到您的預約網站：<code>https://corin-booking.vercel.app/?code=[核銷碼]</code>。</li>
-                <li>您可以直接點擊「儲存數位券」下載折價券，傳送給客人，或使用「實體列印」功能印製紙本券。</li>
+                <li>QR Code 掃描後會連結到您的預約網站：<code>https://lin.ee/71YjK75?code=[核銷碼]</code>。</li>
+                <li><strong>批次下載功能：</strong>若您將「批次下載張數」設大於 1，點擊儲存數位券時，系統會自動生成對應數量的不同核銷碼圖檔，並打包成 <strong>ZIP 壓縮檔</strong> 讓您一次下載。</li>
+                <li>您可以直接點擊「儲存數位券」下載折價券傳送給客人，或使用「實體列印」功能印製紙本券。</li>
             </ul>
         </div>
     </div>
@@ -368,10 +381,10 @@
             document.getElementById('expiry-date').value = dateStr;
 
             // 首次自動產生折價券
-            generateCoupon();
+            generateCoupon(true);
 
             // 綁定按鈕點擊事件監聽器
-            document.getElementById('generate-btn').addEventListener('click', generateCoupon);
+            document.getElementById('generate-btn').addEventListener('click', () => generateCoupon(true));
             document.getElementById('download-btn').addEventListener('click', downloadCouponImage);
             document.getElementById('print-btn').addEventListener('click', () => window.print());
             
@@ -403,7 +416,7 @@
         }
 
         // 產生折價券主邏輯
-        function generateCoupon() {
+        function generateCoupon(withAnimation = true) {
             // 獲取表單資料
             const title = document.getElementById('offer-title').value;
             const desc = document.getElementById('offer-desc').value;
@@ -445,57 +458,114 @@
                 correctLevel : QRCode.CorrectLevel.H // 提高容錯率讓圖案更穩定
             });
             
-            // 添加優雅的生成動畫效果
-            const couponContainer = document.getElementById('coupon-container');
-            couponContainer.style.opacity = '0.6';
-            couponContainer.style.transform = 'translateY(10px) scale(0.98)';
-            setTimeout(() => {
-                couponContainer.style.transition = 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
-                couponContainer.style.opacity = '1';
-                couponContainer.style.transform = 'translateY(0) scale(1)';
-            }, 50);
+            // 若為批次下載，則跳過動畫以加速處理並避免截圖殘影
+            if (withAnimation) {
+                // 添加優雅的生成動畫效果
+                const couponContainer = document.getElementById('coupon-container');
+                couponContainer.style.opacity = '0.6';
+                couponContainer.style.transform = 'translateY(10px) scale(0.98)';
+                setTimeout(() => {
+                    couponContainer.style.transition = 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+                    couponContainer.style.opacity = '1';
+                    couponContainer.style.transform = 'translateY(0) scale(1)';
+                }, 50);
+            }
         }
 
-        // 下載折價券圖片
-        function downloadCouponImage() {
+        // 下載折價券圖片 (支援單張與批次打包)
+        async function downloadCouponImage() {
+            const countInput = document.getElementById('generate-count');
+            let count = parseInt(countInput.value) || 1;
+            
+            // 安全限制
+            if (count > 50) {
+                showAlert('為確保瀏覽器穩定，一次最多請產出 50 張。', '超過數量上限');
+                countInput.value = 50;
+                return;
+            }
+            if (count < 1) {
+                countInput.value = 1;
+                count = 1;
+            }
+
             const couponElement = document.getElementById('coupon-container');
             
             // 顯示載入中按鈕狀態
             const btn = document.getElementById('download-btn');
             const originalContent = btn.innerHTML;
-            btn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 處理中...';
             btn.disabled = true;
 
             // 暫時移除過渡動畫，避免截圖出現殘影
             couponElement.style.transition = 'none';
             couponElement.style.transform = 'none';
 
-            // 確保畫面更新後再執行截圖
-            setTimeout(() => {
-                html2canvas(couponElement, {
-                    scale: 2.5, // 提高截圖品質解析度
-                    backgroundColor: null, 
-                    useCORS: true,
-                    logging: false
-                }).then(canvas => {
-                    try {
-                        const image = canvas.toDataURL("image/png");
-                        const link = document.createElement('a');
-                        const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
-                        link.download = `Corin_Voucher_${currentCode}_${dateStr}.png`;
-                        link.href = image;
-                        link.click();
-                    } catch (err) {
-                        console.error('下載失敗:', err);
-                        showAlert('產生圖片失敗，請確認您的瀏覽器是否阻擋了下載行為。', '系統提示');
-                    } finally {
-                        // 恢復按鈕與元素狀態
-                        btn.innerHTML = originalContent;
-                        btn.disabled = false;
-                        couponElement.style.transition = '';
+            try {
+                if (count === 1) {
+                    // === 單張下載 ===
+                    btn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 處理中...';
+                    
+                    // 等待一下確保 DOM 完全更新
+                    await new Promise(r => setTimeout(r, 150));
+                    
+                    const canvas = await html2canvas(couponElement, {
+                        scale: 2.5, // 提高截圖品質解析度
+                        backgroundColor: null, 
+                        useCORS: true,
+                        logging: false
+                    });
+                    
+                    const image = canvas.toDataURL("image/png");
+                    const link = document.createElement('a');
+                    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+                    link.download = `Corin_Voucher_${currentCode}_${dateStr}.png`;
+                    link.href = image;
+                    link.click();
+                    
+                } else {
+                    // === 批次打包下載 (ZIP) ===
+                    const zip = new JSZip();
+                    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+                    const folderName = `Corin_Vouchers_${dateStr}`;
+                    const imgFolder = zip.folder(folderName);
+                    
+                    for (let i = 0; i < count; i++) {
+                        btn.innerHTML = `<svg class="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 產生中 (${i + 1}/${count})...`;
+                        
+                        // 產生新的一張 (關閉動畫)
+                        generateCoupon(false);
+                        
+                        // 等待 QR Code 與 DOM 渲染
+                        await new Promise(r => setTimeout(r, 250));
+                        
+                        // 截圖
+                        const canvas = await html2canvas(couponElement, {
+                            scale: 2.5,
+                            backgroundColor: null, 
+                            useCORS: true,
+                            logging: false
+                        });
+                        
+                        // 取得 base64 字串並去除前綴
+                        const imageBase64 = canvas.toDataURL("image/png").split(',')[1];
+                        imgFolder.file(`Corin_Voucher_${currentCode}.png`, imageBase64, {base64: true});
                     }
-                });
-            }, 200);
+                    
+                    btn.innerHTML = `<svg class="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 打包中...`;
+                    
+                    // 產生 ZIP 檔案並觸發下載
+                    const zipContent = await zip.generateAsync({type: "blob"});
+                    saveAs(zipContent, `${folderName}.zip`);
+                }
+
+            } catch (err) {
+                console.error('下載失敗:', err);
+                showAlert('產生圖片失敗，請確認您的瀏覽器是否阻擋了下載行為。', '系統提示');
+            } finally {
+                // 恢復按鈕與元素狀態
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                couponElement.style.transition = '';
+            }
         }
 
         // 顯示自訂訊息框 (替代傳統 alert)
